@@ -1,5 +1,6 @@
 import pytest
 from rpython.jit.metainterp.optimizeopt.intrelational import IntOrderInfo
+from rpython.jit.metainterp.optimize import InvalidLoop
 
 
 def test_very_basic():
@@ -43,3 +44,10 @@ def test_contains_transitive():
     b.make_lt(c)
     assert a.contains({a: 1, b: 2, c: 3})
     assert not a.contains({a: 1, b: 3, c: 2})
+
+def test_lt_raises_invalidloop():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_lt(b)
+    with pytest.raises(InvalidLoop) as e:
+        b.make_lt(a)

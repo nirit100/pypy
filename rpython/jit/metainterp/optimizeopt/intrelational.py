@@ -1,3 +1,6 @@
+from rpython.jit.metainterp.optimize import InvalidLoop
+
+
 class IntOrderInfo(object):
 
     def __init__(self):
@@ -14,6 +17,8 @@ class IntOrderInfo(object):
         return True
 
     def make_lt(self, other):
+        if other.known_lt(self):
+            raise InvalidLoop("Invalid relations: self < other < self")
         if self.known_lt(other):
             return
         self.relations.append(Bigger(other))
