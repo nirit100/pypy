@@ -43,7 +43,7 @@ def teardown_function(function):
 
 def prove(cond):
     solver = z3.Solver()
-    print('checking', cond)
+    #print('checking', cond)
     z3res = solver.check(z3.Not(cond))
     if z3res == z3.unsat:
         pass
