@@ -51,6 +51,11 @@ def test_lt_transitivity():
     b.make_lt(c)
     assert a.known_lt(c)
 
+@given(order_info_and_contained_number2)
+def test_known_lt_random(args):
+    ((b1, n1), (b2, n2)) = args
+    if b1.known_lt(b2):
+        assert n1 < n2
 
 def test_contains_simple():
     a = IntOrderInfo()
@@ -93,7 +98,6 @@ def test_abstract_add_const():
     b = a.abstract_add_const(1)
     assert a.known_lt(b) # no overflow
 
-
 @given(order_info_and_contained_number, ints)
 def test_add_const_random(t1, n2):
     b1, n1 = t1
@@ -111,6 +115,12 @@ def test_abstract_add():
     assert not c.known_lt(a)
     assert not b.known_lt(c)
     assert not c.known_lt(b)
+
+    a = IntOrderInfo(IntBound(-10, 10))
+    b = IntOrderInfo(IntBound(-10, 10))
+    c = a.abstract_add(b)
+    assert not a.known_lt(c) # inconclusive
+    assert not b.known_lt(c)
 
     a = IntOrderInfo(IntBound(-10, 10))
     b = IntOrderInfo(IntBound(1, 10))
@@ -139,13 +149,33 @@ def test_known_ne():
     assert b.known_ne(a)
 
 @given(order_info_and_contained_number2)
-def test_known_lt_random(args):
-    ((b1, n1), (b2, n2)) = args
-    if b1.known_lt(b2):
-        assert n1 < n2
-
-@given(order_info_and_contained_number2)
 def test_known_ne_random(args):
     ((b1, n1), (b2, n2)) = args
     if b1.known_ne(b2):
         assert n1 != n2
+
+def test_abstract_sub():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    c = a.abstract_sub(b)
+    # nothing is known about how a, b, c relate to each other (sub could overflow)
+    assert not a.known_lt(c)
+    assert not c.known_lt(a)
+    assert not b.known_lt(c)
+    assert not c.known_lt(b)
+
+    a = IntOrderInfo(IntBound(-10, 10))
+    b = IntOrderInfo(IntBound(-10, 10))
+    c = a.abstract_sub(b)
+    assert not a.known_lt(c)
+    assert not b.known_lt(c)
+
+    a = IntOrderInfo(IntBound(5, 10))
+    b = IntOrderInfo(IntBound(-2, 1))
+    c = a.abstract_sub(b)
+    assert IntOrderInfo(IntBound.from_constant(0)).known_lt(c)
+
+    a = IntOrderInfo(IntBound(5, 10))
+    b = IntOrderInfo(IntBound(-2, 1))
+    c = b.abstract_sub(a)
+    assert c.known_lt(IntOrderInfo(IntBound.from_constant(0)))
