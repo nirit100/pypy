@@ -37,10 +37,25 @@ class IntOrderInfo(object):
                 res.make_lt(self)
         return res
 
+    def abstract_add(self, other):
+        bounds = self.bounds.add_bound(other.bounds)
+        res = IntOrderInfo(bounds)
+        if self.bounds.add_bound_cannot_overflow(other.bounds):
+            if other.bounds.known_gt_const(0):
+                self.make_lt(res)
+            elif other.bounds.known_lt_const(0):
+                res.make_lt(self)
+            if self.bounds.known_gt_const(0):
+                other.make_lt(res)
+            elif self.bounds.known_lt_const(0):
+                res.make_lt(other)
+        return res
 
     def _contains(self, concrete_values):
         # concrete_values: dict[IntOrderInfo, int]
         for order, value in concrete_values.iteritems():
+            if not order.bounds.contains(value):
+                return False
             for relation in order.relations:
                 if not relation.bigger in concrete_values:
                     continue
