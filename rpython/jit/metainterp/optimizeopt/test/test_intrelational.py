@@ -179,3 +179,11 @@ def test_abstract_sub():
     b = IntOrderInfo(IntBound(-2, 1))
     c = b.abstract_sub(a)
     assert c.known_lt(IntOrderInfo(IntBound.from_constant(0)))
+
+@given(order_info_and_contained_number2)
+def test_abstract_add_random(args):
+    ((b1, n1), (b2, n2)) = args
+    b3 = b1.abstract_sub(b2)
+    # the result bound works for unsigned addition, regardless of overflow
+    values = {b1: n1, b2: n2, b3: intmask(r_uint(n1) - r_uint(n2))}
+    assert b3.contains(values)

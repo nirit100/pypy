@@ -54,6 +54,23 @@ class IntOrderInfo(object):
                 res.make_lt(other)
         return res
 
+    def abstract_sub(self, other):
+        # TODO: talk about
+        bounds = self.bounds.sub_bound(other.bounds)
+        res = IntOrderInfo(bounds)
+        if self.bounds.sub_bound_cannot_overflow(other.bounds):
+            if other.bounds.known_gt_const(0):
+                res._make_lt(self)
+            elif other.bounds.known_lt_const(0):
+                self._make_lt(res)
+            # refine resulting bounds by operand's relations
+            if self._known_lt(other):
+                res.bounds.make_gt_const(0)
+            elif other._known_lt(self):
+                res.bounds.make_lt_const(0)
+        return res
+
+
     def _contains(self, concrete_values):
         # concrete_values: dict[IntOrderInfo, int]
         for order, value in concrete_values.iteritems():
@@ -67,7 +84,7 @@ class IntOrderInfo(object):
         return True
 
     def _make_lt(self, other):
-        if other.known_lt(self):
+        if other.known_lt(self) or self is other:
             raise InvalidLoop("Invalid relations: self < other < self")
         if self.known_lt(other):
             return
