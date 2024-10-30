@@ -130,3 +130,22 @@ def test_abstract_add_random(args):
     # the result bound works for unsigned addition, regardless of overflow
     values = {b1: n1, b2: n2, b3: intmask(r_uint(n1) + r_uint(n2))}
     assert b3.contains(values)
+
+def test_known_ne():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_lt(b)
+    assert a.known_ne(b)
+    assert b.known_ne(a)
+
+@given(order_info_and_contained_number2)
+def test_known_lt_random(args):
+    ((b1, n1), (b2, n2)) = args
+    if b1.known_lt(b2):
+        assert n1 < n2
+
+@given(order_info_and_contained_number2)
+def test_known_ne_random(args):
+    ((b1, n1), (b2, n2)) = args
+    if b1.known_ne(b2):
+        assert n1 != n2

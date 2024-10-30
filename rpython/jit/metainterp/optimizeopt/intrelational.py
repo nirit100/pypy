@@ -26,6 +26,9 @@ class IntOrderInfo(object):
         return self.bounds.known_lt(other.bounds) \
             or self._known_lt(other)
 
+    def known_ne(self, other):
+        return self.bounds.known_ne(other.bounds) or self._known_lt(other) or other._known_lt(self)
+
     def abstract_add_const(self, const):
         bound_other = IntBound.from_constant(const)
         bounds = self.bounds.add_bound(bound_other)
