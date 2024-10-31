@@ -83,9 +83,9 @@ class IntOrderInfo(object):
                 self._make_lt(res)
             # refine resulting bounds by operand's relations
             if self._known_lt(other):
-                res.bounds.make_gt_const(0)
-            elif other._known_lt(self):
                 res.bounds.make_lt_const(0)
+            elif other._known_lt(self):
+                res.bounds.make_gt_const(0)
         return res
 
 
