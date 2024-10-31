@@ -9,6 +9,24 @@ class IntOrderInfo(object):
         self.bounds = bounds
         self.relations = []
 
+    def __repr__(self):
+        lines = self.pp()
+        return '\n'.join(lines)
+
+    def pp(self, indent=0, indent_inc=4, op_pfx=""):
+        indent_prefix = indent * ' '
+        op_pfx = "" if op_pfx == "" else op_pfx + ' '
+        lines = []
+        if len(self.relations) == 0:
+            lines.append(indent_prefix + op_pfx + "IntOrderInfo(" + repr(self.bounds) + ")")
+        else:
+            lines.append(indent_prefix + op_pfx + "IntOrderInfo(" + repr(self.bounds) + "  {")
+            for rel in self.relations:
+                rel_pp = rel.pp(indent+indent_inc, indent_inc)
+                lines.extend(rel_pp)
+            lines.append(indent_prefix + len(op_pfx)*' ' + "})")
+        return lines
+
 
     def contains(self, concrete_values):
         if isinstance(concrete_values, dict):
@@ -108,3 +126,6 @@ class Bigger(object):
 
     def __init__(self, bigger):
         self.bigger = bigger
+
+    def pp(self, indent=0, indent_inc=2):
+        return self.bigger.pp(indent, indent_inc, '<')
