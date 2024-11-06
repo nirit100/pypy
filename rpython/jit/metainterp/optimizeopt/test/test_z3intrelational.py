@@ -5,7 +5,7 @@ import pytest
 from rpython.jit.metainterp.optimizeopt.intrelational import IntOrderInfo
 from rpython.jit.metainterp.optimizeopt.intutils import IntBound
 from rpython.jit.metainterp.optimize import InvalidLoop
-from rpython.jit.metainterp.optimizeopt.test.test_z3intbound import z3_add_overflow, z3_sub_overflow, to_z3 as to_z3_bounds
+from rpython.jit.metainterp.optimizeopt.test.test_z3intbound import z3_add_overflow, z3_sub_overflow, z3_mul_overflow, to_z3 as to_z3_bounds
 from rpython.jit.metainterp.optimizeopt.test.test_intrelational import order_info_and_contained_number2
 
 from rpython.rlib.rarithmetic import r_uint, intmask, LONG_BIT
@@ -71,6 +71,13 @@ def test_abstract_sub_logic():
     prove_implies(no_ovf, b < 0, res > a)
     prove_implies(no_ovf, a < b, res < 0)
     prove_implies(no_ovf, b < a, res > 0)
+
+def test_abstract_mul_logic():
+    a = BitVec('a')
+    b = BitVec('b')
+    res, no_ovf = z3_mul_overflow(a, b)
+    prove_implies(no_ovf, a > 1, b > 1, z3.And(a < res, b < res))
+    prove_implies(no_ovf, a < -1, b < -1, z3.And(a < res, b < res))
 
 
 # __________________________________________________________________

@@ -39,7 +39,7 @@ def test_very_basic():
     a = IntOrderInfo()
     b = IntOrderInfo()
     a.make_lt(b)
-    assert a.known_lt(b)
+    assert a._known_lt(b)
     a.make_lt(b)
     assert len(a.relations) == 1
 
@@ -49,12 +49,12 @@ def test_lt_transitivity():
     c = IntOrderInfo()
     a.make_lt(b)
     b.make_lt(c)
-    assert a.known_lt(c)
+    assert a._known_lt(c)
 
 @given(order_info_and_contained_number2)
-def test_known_lt_random(args):
-    ((b1, n1), (b2, n2)) = args
-    if b1.known_lt(b2):
+def test__known_lt_random(args):
+    ((r1, n1), (r2, n2)) = args
+    if r1._known_lt(r2):
         assert n1 < n2
 
 def test_contains_simple():
@@ -82,7 +82,12 @@ def test_contains_transitive():
     assert a.contains({a: 1, b: 2, c: 3})
     assert not a.contains({a: 1, b: 3, c: 2})
 
-def test_lt_raises_invalidloop():
+def test_lt_raises_invalidloop_1():
+    a = IntOrderInfo()
+    with pytest.raises(InvalidLoop):
+        a.make_lt(a)
+
+def test_lt_raises_invalidloop_2():
     a = IntOrderInfo()
     b = IntOrderInfo()
     a.make_lt(b)
@@ -92,54 +97,79 @@ def test_lt_raises_invalidloop():
 def test_abstract_add_const():
     a = IntOrderInfo()
     b = a.abstract_add_const(1)
-    assert not a.known_lt(b) # could have overflowed
+    assert not a._known_lt(b) # could have overflowed
 
     a = IntOrderInfo(IntBound(0, 10))
     b = a.abstract_add_const(1)
-    assert a.known_lt(b) # no overflow
+    assert a._known_lt(b) # no overflow
 
 @given(order_info_and_contained_number, ints)
 def test_add_const_random(t1, n2):
-    b1, n1 = t1
-    b3 = b1.abstract_add_const(n2)
+    r1, n1 = t1
+    r3 = r1.abstract_add_const(n2)
     # the result bound works for unsigned addition, regardless of overflow
-    values = {b1: n1, b3: intmask(r_uint(n1) + r_uint(n2))}
-    assert b3.contains(values)
+    values = {r1: n1, r3: intmask(r_uint(n1) + r_uint(n2))}
+    assert r3.contains(values)
 
 def test_abstract_add():
     a = IntOrderInfo()
     b = IntOrderInfo()
     c = a.abstract_add(b)
     # nothing is known about how a, b, c relate to each other (add could overflow)
-    assert not a.known_lt(c)
-    assert not c.known_lt(a)
-    assert not b.known_lt(c)
-    assert not c.known_lt(b)
+    assert not a._known_lt(c)
+    assert not c._known_lt(a)
+    assert not b._known_lt(c)
+    assert not c._known_lt(b)
 
     a = IntOrderInfo(IntBound(-10, 10))
     b = IntOrderInfo(IntBound(-10, 10))
     c = a.abstract_add(b)
-    assert not a.known_lt(c) # inconclusive
-    assert not b.known_lt(c)
+    assert not a._known_lt(c) # inconclusive
+    assert not b._known_lt(c)
 
     a = IntOrderInfo(IntBound(-10, 10))
     b = IntOrderInfo(IntBound(1, 10))
     c = a.abstract_add(b)
-    assert a.known_lt(c) # no overflow
+    assert a._known_lt(c) # no overflow
 
     a = IntOrderInfo(IntBound(1, 10))
     b = IntOrderInfo(IntBound(1, 10))
     c = a.abstract_add(b)
-    assert a.known_lt(c) # no overflow
-    assert b.known_lt(c) # no overflow
+    assert a._known_lt(c) # no overflow
+    assert b._known_lt(c) # no overflow
+
+def test_abstract_add_sameop():
+    a = IntOrderInfo()
+    b = a
+    c = a.abstract_add(b)
+    # nothing is known about how a, b, c relate to each other (add could overflow)
+    assert not a._known_lt(c)
+    assert not c._known_lt(a)
+    assert not b._known_lt(c)
+    assert not c._known_lt(b)
+
+    a = IntOrderInfo(IntBound(-10, 10))
+    b = a
+    c = a.abstract_add(b)
+    assert not a._known_lt(c) # inconclusive
+
+    a = IntOrderInfo(IntBound(1, 10))
+    b = a
+    c = a.abstract_add(b)
+    assert a._known_lt(c) # no overflow
+
+    a = IntOrderInfo(IntBound(-10, -1))
+    b = a
+    c = a.abstract_add(b)
+    assert c._known_lt(a) # no overflow
 
 @given(order_info_and_contained_number2)
 def test_abstract_add_random(args):
-    ((b1, n1), (b2, n2)) = args
-    b3 = b1.abstract_add(b2)
+    ((r1, n1), (r2, n2)) = args
+    r3 = r1.abstract_add(r2)
     # the result bound works for unsigned addition, regardless of overflow
-    values = {b1: n1, b2: n2, b3: intmask(r_uint(n1) + r_uint(n2))}
-    assert b3.contains(values)
+    values = {r1: n1, r2: n2, r3: intmask(r_uint(n1) + r_uint(n2))}
+    assert r3.contains(values)
 
 def test_known_ne():
     a = IntOrderInfo()
@@ -150,8 +180,8 @@ def test_known_ne():
 
 @given(order_info_and_contained_number2)
 def test_known_ne_random(args):
-    ((b1, n1), (b2, n2)) = args
-    if b1.known_ne(b2):
+    ((r1, n1), (r2, n2)) = args
+    if r1.known_ne(r2):
         assert n1 != n2
 
 def test_abstract_sub():
@@ -170,20 +200,126 @@ def test_abstract_sub():
     assert not a.known_lt(c)
     assert not b.known_lt(c)
 
-    a = IntOrderInfo(IntBound(5, 10))
-    b = IntOrderInfo(IntBound(-2, 1))
-    c = a.abstract_sub(b)
-    assert IntOrderInfo(IntBound.from_constant(0)).known_lt(c)
-
-    a = IntOrderInfo(IntBound(5, 10))
-    b = IntOrderInfo(IntBound(-2, 1))
+    a = IntOrderInfo(IntBound(-100, 100))
+    b = IntOrderInfo(IntBound(-100, 100))
+    a.make_lt(b)
     c = b.abstract_sub(a)
-    assert c.known_lt(IntOrderInfo(IntBound.from_constant(0)))
+    assert c.bounds.known_gt_const(0)
+
+    a = IntOrderInfo(IntBound(-100, 100))
+    b = IntOrderInfo(IntBound(-100, 100))
+    b.make_lt(a)
+    c = b.abstract_sub(a)
+    assert c.bounds.known_lt_const(0)
+
+    a = IntOrderInfo(IntBound(-100, 100))
+    b = IntOrderInfo(IntBound(1, 100))
+    c = a.abstract_sub(b)
+    assert c.known_lt(a)
+
+def test_abstract_sub_other_test():
+    a = IntOrderInfo()
+    b = a
+    c = a.abstract_sub(b)
+    # nothing is known about how a, b, c relate to each other (add could overflow)
+    assert not a._known_lt(c)
+    assert not c._known_lt(a)
+    assert not b._known_lt(c)
+    assert not c._known_lt(b)
+
+    # Since subtracting any value from itself results just in 0 anyways, there
+    #   is no need to really do much about the relations.
+    # So we just make test that it doesn't throw.
+
+    a = IntOrderInfo(IntBound(-10, 10))
+    b = a
+    c = a.abstract_sub(b)
+
+    a = IntOrderInfo(IntBound(1, 10))
+    b = a
+    c = a.abstract_sub(b)
+
+    a = IntOrderInfo(IntBound(-10, -1))
+    b = a
+    c = a.abstract_sub(b)
 
 @given(order_info_and_contained_number2)
-def test_abstract_add_random(args):
-    ((b1, n1), (b2, n2)) = args
-    b3 = b1.abstract_sub(b2)
+def test_abstract_sub_random(args):
+    ((r1, n1), (r2, n2)) = args
+    r3 = r1.abstract_sub(r2)
     # the result bound works for unsigned addition, regardless of overflow
-    values = {b1: n1, b2: n2, b3: intmask(r_uint(n1) - r_uint(n2))}
-    assert b3.contains(values)
+    values = {r1: n1, r2: n2, r3: intmask(r_uint(n1) - r_uint(n2))}
+    assert r3.contains(values)
+
+def test_abstract_mul_no_relation():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    c = a.abstract_mul(b)
+    # nothing is known about how a, b, c relate to each other (mul could overflow)
+    assert not a._known_lt(c)
+    assert not c._known_lt(a)
+    assert not b._known_lt(c)
+    assert not c._known_lt(b)
+
+    a = IntOrderInfo(IntBound(-10, 10))
+    b = IntOrderInfo(IntBound(-10, 10))
+    c = a.abstract_mul(b)
+    assert not a._known_lt(c)
+    assert not b._known_lt(c)
+
+    a = IntOrderInfo(IntBound(1, 10))
+    b = IntOrderInfo(IntBound(-6, -4))
+    c = a.abstract_mul(b)
+    assert not a._known_lt(c)
+    assert not b._known_lt(c)
+
+    a = IntOrderInfo(IntBound(1, 10))
+    b = IntOrderInfo(IntBound(-6, -4))
+    c = b.abstract_mul(a)
+    assert not a._known_lt(c)
+    assert not b._known_lt(c)
+
+    a = IntOrderInfo(IntBound(-20, -10))
+    b = IntOrderInfo(IntBound(-6, -5))
+    c = b.abstract_mul(a)
+    assert a.known_lt(c) # not in order, implied by bounds, both
+    assert b.known_lt(c)
+
+
+def test_abstract_mul():
+    a = IntOrderInfo(IntBound(1, 10))
+    b = IntOrderInfo(IntBound(5, 6))
+    c = a.abstract_mul(b)
+    assert a._known_lt(c)
+    assert not b._known_lt(c)
+
+    a = IntOrderInfo(IntBound(1, 10))
+    b = IntOrderInfo(IntBound(5, 6))
+    c = b.abstract_mul(a)
+    assert a._known_lt(c)
+    assert not b._known_lt(c)
+
+    a = IntOrderInfo(IntBound(2, 10))
+    b = IntOrderInfo(IntBound(5, 6))
+    c = a.abstract_mul(b)
+    assert a._known_lt(c)
+    assert b.known_lt(c) # implied by bounds
+
+    a = IntOrderInfo(IntBound(2, 10))
+    b = IntOrderInfo(IntBound(-100, -4))
+    c = a.abstract_mul(b)
+    assert c.known_lt(a) # implied by bounds
+    assert c._known_lt(b)
+
+    a = IntOrderInfo(IntBound(2, 10))
+    b = IntOrderInfo(IntBound(-100, -4))
+    c = b.abstract_mul(a)
+    assert c.known_lt(a) # implied by bounds
+    assert c._known_lt(b)
+
+@given(order_info_and_contained_number2)
+def test_abstract_mul_random(args):
+    ((r1, n1), (r2, n2)) = args
+    r3 = r1.abstract_mul(r2)
+    values = {r1: n1, r2: n2, r3: intmask(r_uint(n1) * r_uint(n2))}
+    assert r3.contains(values)

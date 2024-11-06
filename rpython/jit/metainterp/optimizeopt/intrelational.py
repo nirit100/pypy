@@ -36,6 +36,7 @@ class IntOrderInfo(object):
             return self.bounds.contains(concrete_values)
 
     def make_lt(self, other):
+        # TODO: if make_lt returns False we can return early
         self.bounds.make_lt(other.bounds)
         self._make_lt(other)
 
@@ -73,14 +74,13 @@ class IntOrderInfo(object):
         return res
 
     def abstract_sub(self, other):
-        # TODO: talk about
         bounds = self.bounds.sub_bound(other.bounds)
         res = IntOrderInfo(bounds)
         if self.bounds.sub_bound_cannot_overflow(other.bounds):
             if other.bounds.known_gt_const(0):
-                res._make_lt(self)
+                res.make_lt(self)
             elif other.bounds.known_lt_const(0):
-                self._make_lt(res)
+                self.make_lt(res)
             # refine resulting bounds by operand's relations
             if self._known_lt(other):
                 res.bounds.make_lt_const(0)
@@ -88,6 +88,22 @@ class IntOrderInfo(object):
                 res.bounds.make_gt_const(0)
         return res
 
+    def abstract_mul(self, other):
+        # TODO: This is probably unsound or at least not precise!
+        bounds = self.bounds.mul_bound(other.bounds)
+        res = IntOrderInfo(bounds)
+        if self.bounds.mul_bound_cannot_overflow(other.bounds):
+            if other.bounds.known_gt_const(1):
+                if self.bounds.known_gt_const(0):
+                    self.make_lt(res)
+                elif self.bounds.known_lt_const(0):
+                    res.make_lt(self)
+            if self.bounds.known_gt_const(1):
+                if other.bounds.known_gt_const(0):
+                    other.make_lt(res)
+                elif other.bounds.known_lt_const(0):
+                    res.make_lt(other)
+        return res
 
     def _contains(self, concrete_values):
         # concrete_values: dict[IntOrderInfo, int]
