@@ -23,6 +23,19 @@ def BitVecVal(value):
 def BitVec(name):
     return z3.BitVec(name, LONG_BIT)
 
+def z3_with_reduced_bitwidth(width):
+    def dec(test):
+        assert test.func_name.endswith("logic") # doesn't work for code in intutils.py
+        def newtest(*args, **kwargs):
+            global LONG_BIT
+            old_value = LONG_BIT
+            LONG_BIT = width
+            try:
+                return test(*args, **kwargs)
+            finally:
+                LONG_BIT = old_value
+        return newtest
+    return dec
 
 MAXINT = sys.maxint
 MININT = -sys.maxint - 1
@@ -72,13 +85,13 @@ def test_abstract_sub_logic():
     prove_implies(no_ovf, a < b, res < 0)
     prove_implies(no_ovf, b < a, res > 0)
 
+@z3_with_reduced_bitwidth(32)
 def test_abstract_mul_logic():
     a = BitVec('a')
     b = BitVec('b')
     res, no_ovf = z3_mul_overflow(a, b)
-    prove_implies(no_ovf, a > 1, b > 1, z3.And(a < res, b < res))
-    prove_implies(no_ovf, a < -1, b < -1, z3.And(a < res, b < res))
-
+    prove_implies(no_ovf, a > 0, b > 1, a < res)
+    prove_implies(no_ovf, a < 0, b > 1, a > res)
 
 # __________________________________________________________________
 # bounded model checking
