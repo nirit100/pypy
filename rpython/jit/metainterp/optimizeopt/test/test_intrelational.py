@@ -17,25 +17,32 @@ order_info_and_contained_number = strategies.builds(
     knownbits_and_bound_with_contained_number
 )
 
-def build_order_info_and_contained_number2(t1, t2, are_related):
+def build_order_info_and_contained_number2(t1, t2, relation_kind):
     i1, n1 = t1
     i2, n2 = t2
-    if n1 != n2 and are_related:
+    if relation_kind == "lt":
         if n1 < n2:
             i1.make_lt(i2)
-        else:
-            assert n2 < n1
+        elif n2 < n1:
             i2.make_lt(i1)
+        # ignore case '=='
+    elif relation_kind.startswith("le"):
+        if n1 < n2 or (n1 == n2 and relation_kind == 'le'):
+            i1.make_le(i2)
+        else:
+            # also includes "le_reverse"
+            assert n2 <= n1
+            i2.make_le(i1)
     return ((i1, n1), (i2, n2))
 
 order_info_and_contained_number2 = strategies.builds(
     build_order_info_and_contained_number2,
     order_info_and_contained_number,
     order_info_and_contained_number,
-    strategies.booleans()
+    strategies.sampled_from(["none", "lt", "le", "le_reverse"])
 )
 
-def test_very_basic():
+def test_lt_very_basic():
     a = IntOrderInfo()
     b = IntOrderInfo()
     a.make_lt(b)
@@ -51,11 +58,106 @@ def test_lt_transitivity():
     b.make_lt(c)
     assert a._known_lt(c)
 
+def test_make_le_already_implied_by_bounds():
+    a = IntOrderInfo(IntBound(-20, -10))
+    b = IntOrderInfo(IntBound(0, 10))
+    a._make_le = None # test that the bounds fast path works
+    a.make_le(b)
+    assert a.known_le(b)
+
+def test_known_le_self():
+    a = IntOrderInfo()
+    assert a.known_le(a)
+    a.make_le(a)
+
+def test_le_very_basic():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_le(b)
+    assert a._known_le(b)
+    a.make_le(b)
+    assert len(a.relations) == 1
+
+def test_le_transitivity():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    c = IntOrderInfo()
+    a.make_le(b)
+    b.make_le(c)
+    assert a._known_le(c)
+
+def test_lt_le_transitivity():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    c = IntOrderInfo()
+    a.make_lt(b)
+    b.make_le(c)
+    assert a._known_lt(c)
+
+def test_lt_le_different():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_le(b)
+    assert not a._known_lt(b)
+    assert a._known_le(b)
+
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_lt(b)
+    assert a._known_lt(b)
+    assert a._known_le(b)
+
+def test_le_cycle():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_le(b)
+    b.make_le(a)
+    assert a.known_le(b)
+    assert b.known_le(a)
+    assert not a.known_lt(b)
+
+def test_str_cycle():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_le(b)
+    b.make_le(a)
+    assert str(a) == '''\
+i0 = IntOrderInfo(IntBound.unbounded()  {
+    <= i1 = IntOrderInfo(IntBound.unbounded()  {
+        <= i0
+       })
+})'''
+
+
+def test_make_lt_then_make_le():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_lt(b)
+    a.make_le(b)
+    assert a.known_le(b)
+    assert a.known_lt(b)
+    assert len(a.relations) == 1
+
+def test_make_le_then_make_lt():
+    a = IntOrderInfo()
+    b = IntOrderInfo()
+    a.make_le(b)
+    a.make_lt(b)
+    assert a.known_le(b)
+    assert a.known_lt(b)
+    assert len(a.relations) == 1
+
 @given(order_info_and_contained_number2)
-def test__known_lt_random(args):
+def test_known_any_random(args):
     ((r1, n1), (r2, n2)) = args
+    if r1._known_le(r2):
+        assert n1 <= n2
+    elif r2._known_le(r1):
+        assert n2 <= n1
     if r1._known_lt(r2):
         assert n1 < n2
+    elif r2._known_lt(r1):
+        assert n2 < n1
 
 def test_contains_simple():
     a = IntOrderInfo()

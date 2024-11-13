@@ -9,20 +9,26 @@ class IntOrderInfo(object):
         self.bounds = bounds
         self.relations = []
 
-    def __repr__(self):
+    def __str__(self):
         lines = self.pp()
         return '\n'.join(lines)
 
-    def pp(self, indent=0, indent_inc=4, op_pfx=""):
+    def pp(self, indent=0, indent_inc=4, op_pfx="", seen=None):
+        if seen is None:
+            seen = {}
         indent_prefix = indent * ' '
         op_pfx = "" if op_pfx == "" else op_pfx + ' '
+        if self in seen:
+            return [indent_prefix + op_pfx + seen[self]]
+        else:
+            seen[self] = name = 'i%s' % len(seen)
         lines = []
         if len(self.relations) == 0:
-            lines.append(indent_prefix + op_pfx + "IntOrderInfo(" + repr(self.bounds) + ")")
+            lines.append(indent_prefix + op_pfx + "%s = IntOrderInfo(" % name + repr(self.bounds) + ")")
         else:
-            lines.append(indent_prefix + op_pfx + "IntOrderInfo(" + repr(self.bounds) + "  {")
+            lines.append(indent_prefix + op_pfx + "%s = IntOrderInfo(" % name + repr(self.bounds) + "  {")
             for rel in self.relations:
-                rel_pp = rel.pp(indent+indent_inc, indent_inc)
+                rel_pp = rel.pp(indent+indent_inc, indent_inc, seen=seen)
                 lines.extend(rel_pp)
             lines.append(indent_prefix + len(op_pfx)*' ' + "})")
         return lines
@@ -36,7 +42,8 @@ class IntOrderInfo(object):
             return self.bounds.contains(concrete_values)
 
     def make_lt(self, other):
-        # TODO: if make_lt returns False we can return early
+        if self.bounds.known_lt(other.bounds):
+            return
         self.bounds.make_lt(other.bounds)
         self._make_lt(other)
 
@@ -44,6 +51,17 @@ class IntOrderInfo(object):
         # ask bounds first, as it is cheaper
         return self.bounds.known_lt(other.bounds) \
             or self._known_lt(other)
+
+    def make_le(self, other):
+        if self.bounds.known_le(other.bounds):
+            return
+        self.bounds.make_le(other.bounds)
+        self._make_le(other)
+
+    def known_le(self, other):
+        # ask bounds first, as it is cheaper
+        return self is other or self.bounds.known_le(other.bounds) \
+            or self._known_le(other)
 
     def known_ne(self, other):
         return self.bounds.known_ne(other.bounds) or self._known_lt(other) or other._known_lt(self)
@@ -89,7 +107,6 @@ class IntOrderInfo(object):
         return res
 
     def abstract_mul(self, other):
-        # TODO: This is probably unsound or at least not precise!
         bounds = self.bounds.mul_bound(other.bounds)
         res = IntOrderInfo(bounds)
         if self.bounds.mul_bound_cannot_overflow(other.bounds):
@@ -111,25 +128,54 @@ class IntOrderInfo(object):
             if not order.bounds.contains(value):
                 return False
             for relation in order.relations:
-                if not relation.bigger in concrete_values:
+                if not relation.other in concrete_values:
                     continue
-                if not value < concrete_values[relation.bigger]:
+                if not relation.concrete_cmp(value, concrete_values[relation.other]):
                     return False
         return True
 
     def _make_lt(self, other):
+        # TODO: should this be other.known_le(self) now?
         if other.known_lt(self) or self is other:
-            raise InvalidLoop("Invalid relations: self < other < self")
+            raise InvalidLoop("Invalid relations: self < other <= self")
         if self.known_lt(other):
             return
+        for index, relation in enumerate(self.relations):
+            if relation.other is other:
+                assert isinstance(relation, BiggerOrEqual)
+                self.relations[index] = Bigger(other)
+                return
         self.relations.append(Bigger(other))
 
     def _known_lt(self, other):
         todo = self.relations[:]
         seen = dict()
+        seen_bigger = False
         while todo:
             relation = todo.pop()
-            interm = relation.bigger
+            interm = relation.other
+            seen_bigger = seen_bigger or type(relation) is Bigger
+            if interm in seen:
+                continue
+            if interm is other and seen_bigger:
+                return True
+            seen[interm] = None
+            todo.extend(interm.relations)
+        return False
+
+    def _make_le(self, other):
+        if other.known_lt(self):
+            raise InvalidLoop("Invalid relations: self <= other < self")
+        if self.known_le(other):
+            return
+        self.relations.append(BiggerOrEqual(other))
+
+    def _known_le(self, other):
+        todo = self.relations[:]
+        seen = dict()
+        while todo:
+            relation = todo.pop()
+            interm = relation.other
             if interm in seen:
                 continue
             if interm is other:
@@ -138,10 +184,24 @@ class IntOrderInfo(object):
             todo.extend(interm.relations)
         return False
 
-class Bigger(object):
+class Relation(object):
+    def __init__(self, other):
+        self.other = other
 
-    def __init__(self, bigger):
-        self.bigger = bigger
+    def __str__(self):
+        lines = self.pp()
+        return '\n'.join(lines)
 
-    def pp(self, indent=0, indent_inc=2):
-        return self.bigger.pp(indent, indent_inc, '<')
+class Bigger(Relation):
+    def concrete_cmp(self, val1, val2):
+        return val1 < val2 # TODO: looks a bit irritating with respect to the class name now
+
+    def pp(self, indent=0, indent_inc=2, seen=None):
+        return self.other.pp(indent, indent_inc, '<', seen=seen)
+
+class BiggerOrEqual(Relation):
+    def concrete_cmp(self, val1, val2):
+        return val1 <= val2
+
+    def pp(self, indent=0, indent_inc=2, seen=None):
+        return self.other.pp(indent, indent_inc, '<=', seen=seen)
