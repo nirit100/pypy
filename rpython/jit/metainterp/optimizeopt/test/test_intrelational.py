@@ -425,3 +425,42 @@ def test_abstract_mul_random(args):
     r3 = r1.abstract_mul(r2)
     values = {r1: n1, r2: n2, r3: intmask(r_uint(n1) * r_uint(n2))}
     assert r3.contains(values)
+
+
+
+from hypothesis.stateful import Bundle, RuleBasedStateMachine, rule
+
+
+class IntOrderStateful(RuleBasedStateMachine):
+    def __init__(self):
+        RuleBasedStateMachine.__init__(self)
+        self.abstract_to_contrete = {}
+
+    orderinfos = Bundle("orderinfos")
+
+    @rule(target=orderinfos, t=knownbits_and_bound_with_contained_number)
+    def add_orderinfo(self, t):
+        i, n = build_order_info_and_contained_number(t)
+        self.abstract_to_contrete[i] = n
+        return i
+
+    @rule(a=orderinfos, b=orderinfos)
+    def make_lt(self, a, b):
+        na = self.abstract_to_contrete[a]
+        nb = self.abstract_to_contrete[b]
+        if na < nb:
+            a.make_lt(b)
+
+    @rule(a=orderinfos, b=orderinfos)
+    def make_le(self, a, b):
+        na = self.abstract_to_contrete[a]
+        nb = self.abstract_to_contrete[b]
+        if na <= nb:
+            a.make_le(b)
+
+    @rule(a=orderinfos)
+    def check_contains(self, a):
+        assert a.contains(self.abstract_to_contrete)
+
+
+TestIntOrderStateful = IntOrderStateful.TestCase

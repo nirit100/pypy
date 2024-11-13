@@ -145,6 +145,8 @@ class IntOrderInfo(object):
                 assert isinstance(relation, BiggerOrEqual)
                 self.relations[index] = Bigger(other)
                 return
+        if self._known_le(other):
+            import pdb;pdb.set_trace()  # TODO: how to trigger this?
         self.relations.append(Bigger(other))
 
     def _known_lt(self, other):
