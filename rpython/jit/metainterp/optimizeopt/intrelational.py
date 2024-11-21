@@ -145,25 +145,41 @@ class IntOrderInfo(object):
                 assert isinstance(relation, BiggerOrEqual)
                 self.relations[index] = Bigger(other)
                 return
-        if self._known_le(other):
-            import pdb;pdb.set_trace()  # TODO: how to trigger this?
         self.relations.append(Bigger(other))
 
     def _known_lt(self, other):
-        todo = self.relations[:]
-        seen = dict()
-        seen_bigger = False
+        biggest_distance = self._astar(other)
+        return biggest_distance > 0
+
+    def _astar(self, other, cutoff=None):
+        todo = {self}
+        best_distance = {self: 0} # node -> best distance so far, from self
+        best_distance[other] = -1
         while todo:
-            relation = todo.pop()
-            interm = relation.other
-            seen_bigger = seen_bigger or type(relation) is Bigger
-            if interm in seen:
-                continue
-            if interm is other and seen_bigger:
-                return True
-            seen[interm] = None
-            todo.extend(interm.relations)
-        return False
+            # pick element from todo with biggest distance
+            # TODO: use a priority queue instead
+            best_distance_seen = -1
+            best = None
+            for current in todo:
+                if best_distance[current] > best_distance_seen:
+                    best_distance_seen = best_distance[current]
+                    best = current
+            if best is None:
+                current = todo.pop()
+            else:
+                todo.remove(best)
+                current = best
+            # found the goal?
+            for relation in current.relations:
+                tentative_score = best_distance[current] + relation.min_margin()
+                if tentative_score > best_distance.get(relation.other, -1):
+                    best_distance[relation.other] = tentative_score
+                    todo.add(relation.other)
+            # check cutoff
+            if cutoff is not None and best_distance[other] >= cutoff:
+                break
+
+        return best_distance[other]
 
     def _make_le(self, other):
         if other.known_lt(self):
@@ -194,9 +210,39 @@ class Relation(object):
         lines = self.pp()
         return '\n'.join(lines)
 
+    def pp(self, indent=0, indent_inc=2, seen=None):
+        raise NotImplementedError("abstract method")
+
+    def concrete_cmp(self, val1, val2):
+        """
+        Return True iff for the two concrete values
+        val1 and val2 and this relation R,
+        'val1 R val2' holds, False otherwise
+
+        Args:
+            val1 (int): left-hand-side concrete value to compare
+            val2 (int): right-hand-side concrete value to compare
+
+        Returns:
+            bool: True if 'val1 R val2', False otherwise
+        """
+        raise NotImplementedError("abstract method")
+
+    def min_margin(self):
+        """
+        Returns the minimum concrete value difference implied by this relation.
+
+        Returns:
+            int: minimum difference between two concrete values for this relation
+        """
+        raise NotImplementedError("abstract method")
+
 class Bigger(Relation):
     def concrete_cmp(self, val1, val2):
         return val1 < val2 # TODO: looks a bit irritating with respect to the class name now
+
+    def min_margin(self):
+        return 1
 
     def pp(self, indent=0, indent_inc=2, seen=None):
         return self.other.pp(indent, indent_inc, '<', seen=seen)
@@ -204,6 +250,9 @@ class Bigger(Relation):
 class BiggerOrEqual(Relation):
     def concrete_cmp(self, val1, val2):
         return val1 <= val2
+
+    def min_margin(self):
+        return 0
 
     def pp(self, indent=0, indent_inc=2, seen=None):
         return self.other.pp(indent, indent_inc, '<=', seen=seen)

@@ -1,6 +1,6 @@
 import pytest
 from rpython.jit.metainterp.optimizeopt.intrelational import IntOrderInfo
-from rpython.jit.metainterp.optimizeopt.intutils import IntBound
+from rpython.jit.metainterp.optimizeopt.intutils import IntBound, MININT, MAXINT
 from rpython.jit.metainterp.optimize import InvalidLoop
 from rpython.jit.metainterp.optimizeopt.test.test_intbound import knownbits_and_bound_with_contained_number, ints
 
@@ -146,6 +146,51 @@ def test_make_le_then_make_lt():
     assert a.known_le(b)
     assert a.known_lt(b)
     assert len(a.relations) == 1
+
+def test_known_lt_takes_all_paths_into_account():
+    import itertools
+    for indexes in itertools.permutations([(0, 1, 'le'), (1, 2, 'le'), (0, 2, 'lt')], 3):
+        a = IntOrderInfo()
+        b = IntOrderInfo()
+        c = IntOrderInfo()
+        l = [a, b, c]
+        for i1, i2, kind in indexes:
+            if kind == 'le':
+                l[i1].make_le(l[i2])
+            else:
+                l[i1].make_lt(l[i2])
+        assert a.known_le(b)
+        assert b.known_le(c)
+        assert a.known_lt(c)
+
+def test_known_lt_takes_all_paths_into_account_diamond():
+    import itertools
+    #      a0
+    # <= /   \ <
+    #   b1    c2
+    # <= \   / <=
+    #      d3
+    for indexes in itertools.permutations([(0, 1, 'le'), (0, 2, 'lt'), (1, 3, 'le'), (2, 3, 'le')], 4):
+        a = IntOrderInfo()
+        b = IntOrderInfo()
+        c = IntOrderInfo()
+        d = IntOrderInfo()
+        l = [a, b, c, d]
+        for i1, i2, kind in indexes:
+            if kind == 'le':
+                l[i1].make_le(l[i2])
+            else:
+                l[i1].make_lt(l[i2])
+
+        assert a.known_lt(d)
+
+def test_known_lt_bug():
+    r1 = IntOrderInfo(IntBound(MININT, -1))
+    r2 = IntOrderInfo(IntBound(MININT, -1))
+    r1.make_le(r2)
+    r3 = IntOrderInfo(IntBound(MININT + 1, MAXINT))
+    r1.make_lt(r3)
+    assert not r1._known_lt(r2)
 
 @given(order_info_and_contained_number2)
 def test_known_any_random(args):
@@ -457,6 +502,33 @@ class IntOrderStateful(RuleBasedStateMachine):
         nb = self.abstract_to_contrete[b]
         if na <= nb:
             a.make_le(b)
+
+    @rule(a=orderinfos, b=orderinfos, target=orderinfos)
+    def add(self, a, b):
+        na = self.abstract_to_contrete[a]
+        nb = self.abstract_to_contrete[b]
+        c = a.abstract_add(b)
+        nc = intmask(na + nb)
+        self.abstract_to_contrete[c] = nc
+        return c
+
+    @rule(a=orderinfos, b=orderinfos, target=orderinfos)
+    def sub(self, a, b):
+        na = self.abstract_to_contrete[a]
+        nb = self.abstract_to_contrete[b]
+        c = a.abstract_sub(b)
+        nc = intmask(na - nb)
+        self.abstract_to_contrete[c] = nc
+        return c
+
+    @rule(a=orderinfos, b=orderinfos, target=orderinfos)
+    def mul(self, a, b):
+        na = self.abstract_to_contrete[a]
+        nb = self.abstract_to_contrete[b]
+        c = a.abstract_mul(b)
+        nc = intmask(na * nb)
+        self.abstract_to_contrete[c] = nc
+        return c
 
     @rule(a=orderinfos)
     def check_contains(self, a):
