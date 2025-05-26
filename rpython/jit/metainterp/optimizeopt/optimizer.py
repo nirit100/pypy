@@ -861,6 +861,11 @@ class Optimizer(Optimization):
         return opinfo is not None and opinfo.is_virtual()
 
     def check_aliasing(self, arg0, arg1, instance=False):
+        """ check aliasing possibilities of arg0 and arg1. returns:
+        MUST_ALIAS if the pointers arg0 and arg1 must be the same
+        CANNOT_ALIAS if the pointers arg0 and arg1 must be different
+        UNKNOWN_ALIAS if its not known whether arg0 and arg1 can be the same or must be different
+        """
         def nullness_to_aliasing(nullness):
             if nullness == info.INFO_NULL:
                 return MUST_ALIAS
@@ -870,41 +875,54 @@ class Optimizer(Optimization):
         info0 = getptrinfo(arg0)
         info1 = getptrinfo(arg1)
         if arg0 is arg1:
+            # if the two variables are the same, the pointers must alias
             return MUST_ALIAS
-        elif info0 and info0.is_virtual():
-            if info1 and info1.is_virtual():
-                if info0 is info1:
-                    return MUST_ALIAS
-                return CANNOT_ALIAS
-            else:
-                return CANNOT_ALIAS
-        elif info1 and info1.is_virtual():
-            return CANNOT_ALIAS
         elif info1 and info1.is_null():
+            # one pointer is null, use info nullness logic
             nullness = self.getnullness(arg0)
             return nullness_to_aliasing(nullness)
         elif info0 and info0.is_null():
             nullness = self.getnullness(arg1)
             return nullness_to_aliasing(nullness)
-        else:
-            if instance:
-                if info0 is None:
-                    cls0 = None
+        return self.check_aliasing_two_infos(info0, info1, instance)
+
+    def check_aliasing_two_infos(self, info0, info1, instance=False):
+        """check if two pointer infos can alias or not. return values are the same as check_aliasing"""
+        # TODO: do we want to check for info0 is info1 here?
+        if info0 and info0.is_virtual():
+            if info1 and info1.is_virtual():
+                # two virtuals must alias iff their info is the same
+                if info0 is info1:
+                    return MUST_ALIAS
+                return CANNOT_ALIAS
+            else:
+                # a virtual and non-virtual can never alias
+                return CANNOT_ALIAS
+        elif info1 and info1.is_virtual():
+            # a virtual and non-virtual can never alias
+            return CANNOT_ALIAS
+        elif instance:
+            if info0 is None:
+                cls0 = None
+            else:
+                cls0 = info0.get_known_class(self.cpu)
+            if cls0 is not None:
+                if info1 is None:
+                    cls1 = None
                 else:
-                    cls0 = info0.get_known_class(self.cpu)
-                if cls0 is not None:
-                    if info1 is None:
-                        cls1 = None
-                    else:
-                        cls1 = info1.get_known_class(self.cpu)
-                    if cls1 is not None and not cls0.same_constant(cls1):
-                        # cannot be the same object, as we know that their
-                        # class is different
-                        return CANNOT_ALIAS
-            elif isinstance(info0, info.ArrayPtrInfo) and isinstance(info1, info.ArrayPtrInfo):
-                if info0.getlenbound(None).known_ne(info1.getlenbound(None)):
+                    cls1 = info1.get_known_class(self.cpu)
+                if cls1 is not None and not cls0.same_constant(cls1):
+                    # cannot be the same object, as we know that their
+                    # class is different
                     return CANNOT_ALIAS
-            return UNKNOWN_ALIAS
+            if self.optheap is not None and isinstance(info0, info.AbstractStructPtrInfo) and isinstance(info1, info.AbstractStructPtrInfo):
+                return self.optheap._check_aliasing_two_infos_by_content(info0, info1)
+        elif isinstance(info0, info.ArrayPtrInfo) and isinstance(info1, info.ArrayPtrInfo):
+            # if length of two arrays is different they cannot be the same array
+            if info0.getlenbound(None).known_ne(info1.getlenbound(None)):
+                return CANNOT_ALIAS
+            return self.optheap._check_aliasing_two_infos_by_content(info0, info1)
+        return UNKNOWN_ALIAS
 
     # These are typically removed already by OptRewrite, but it can be
     # dissabled and unrolling emits some SAME_AS ops to setup the

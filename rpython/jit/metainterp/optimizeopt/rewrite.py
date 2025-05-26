@@ -521,43 +521,6 @@ class OptRewrite(Optimization):
             return self.emit(op)
         res = (alias != CANNOT_ALIAS) ^ expect_isnot
         return self.make_constant_int(op, res)
-        info0 = getptrinfo(arg0)
-        info1 = getptrinfo(arg1)
-        if info0 and info0.is_virtual():
-            if info1 and info1.is_virtual():
-                intres = (info0 is info1) ^ expect_isnot
-                self.make_constant_int(op, intres)
-            else:
-                self.make_constant_int(op, expect_isnot)
-        elif info1 and info1.is_virtual():
-            self.make_constant_int(op, expect_isnot)
-        elif info1 and info1.is_null():
-            return self._optimize_nullness(op, op.getarg(0), expect_isnot)
-        elif info0 and info0.is_null():
-            return self._optimize_nullness(op, op.getarg(1), expect_isnot)
-        elif arg0 is arg1:
-            self.make_constant_int(op, not expect_isnot)
-        else:
-            if instance:
-                if info0 is None:
-                    cls0 = None
-                else:
-                    cls0 = info0.get_known_class(self.optimizer.cpu)
-                if cls0 is not None:
-                    if info1 is None:
-                        cls1 = None
-                    else:
-                        cls1 = info1.get_known_class(self.optimizer.cpu)
-                    if cls1 is not None and not cls0.same_constant(cls1):
-                        # cannot be the same object, as we know that their
-                        # class is different
-                        self.make_constant_int(op, expect_isnot)
-                        return
-            elif isinstance(info0, ArrayPtrInfo) and isinstance(info1, ArrayPtrInfo):
-                if info0.getlenbound(None).known_ne(info1.getlenbound(None)):
-                    self.make_constant_int(op, expect_isnot)
-                    return
-            return self.emit(op)
 
     def optimize_PTR_EQ(self, op):
         return self._optimize_oois_ooisnot(op, False, False)

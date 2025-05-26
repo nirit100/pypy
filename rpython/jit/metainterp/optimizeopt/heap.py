@@ -65,11 +65,8 @@ class AbstractCachedEntry(object):
         """returns MUST_ALIAS, CANNOT_ALIAS, UNKNOWN_ALIAS """
         if opinfo1.same_info(opinfo2):
             return MUST_ALIAS
-        if self._cannot_alias_via_classes_or_lengths(optheap, opinfo1, opinfo2) == CANNOT_ALIAS:
-            return CANNOT_ALIAS
-        if self._cannot_alias_via_content(optheap, opinfo1, opinfo2) == CANNOT_ALIAS:
-            return CANNOT_ALIAS
-        return UNKNOWN_ALIAS
+        instance = isinstance(opinfo1, info.InstancePtrInfo) and isinstance(opinfo2, info.InstancePtrInfo)
+        return optheap.optimizer.check_aliasing_two_infos(opinfo1, opinfo2, instance=instance)
 
     def do_setfield(self, optheap, op):
         # Update the state with the SETFIELD_GC/SETARRAYITEM_GC operation 'op'.
@@ -102,6 +99,7 @@ class AbstractCachedEntry(object):
         op = self._lazy_set
         if op:
             opinfo2 = info.getptrinfo(op.getarg(0))
+            #aliasing_state = optheap.optimizer.check_aliasing_two_infos(opinfo, opinfo2)
             aliasing_state = self.possible_aliasing_two_infos(optheap, opinfo, opinfo2)
             if aliasing_state == UNKNOWN_ALIAS:
                 self.force_lazy_set(optheap, descr)
@@ -192,35 +190,6 @@ class CachedField(AbstractCachedEntry):
         self.cached_infos = []
         self.cached_structs = []
 
-    def _cannot_alias_via_classes_or_lengths(self, optheap, opinfo1, opinfo2):
-        constclass1 = opinfo1.get_known_class(optheap.optimizer.cpu)
-        constclass2 = opinfo2.get_known_class(optheap.optimizer.cpu)
-        if constclass1 is not None and constclass2 is not None and not constclass1.same_constant(constclass2):
-            return CANNOT_ALIAS
-        else:
-            return UNKNOWN_ALIAS
-
-    def _cannot_alias_via_content(self, optheap, opinfo1, opinfo2):
-        if not isinstance(opinfo1, info.AbstractStructPtrInfo):
-            return UNKNOWN_ALIAS
-        if not isinstance(opinfo2, info.AbstractStructPtrInfo):
-            return UNKNOWN_ALIAS
-        content1 = opinfo1.all_items()
-        if content1 is None:
-            return UNKNOWN_ALIAS
-        content2 = opinfo2.all_items()
-        if content2 is None:
-            return UNKNOWN_ALIAS
-        for index in range(min(len(content1), len(content2))):
-            value1 = get_box_replacement(content1[index])
-            value2 = get_box_replacement(content2[index])
-            if value1 is None or value2 is None:
-                continue
-            if not value1.is_constant() or not value2.is_constant():
-                continue
-            if not value1.same_constant(value2):
-                return CANNOT_ALIAS
-        return UNKNOWN_ALIAS
 
 class ArrayCachedItem(AbstractCachedEntry):
     def __init__(self, index, parent): # type: (int, ArrayCacheSubMap) -> None
@@ -261,38 +230,6 @@ class ArrayCachedItem(AbstractCachedEntry):
         self.cached_infos = []
         self.cached_structs = []
         self.parent.clear_varindex()
-
-    def _cannot_alias_via_classes_or_lengths(self, optheap, opinfo1, opinfo2):
-        if not isinstance(opinfo1, info.ArrayPtrInfo):
-            return UNKNOWN_ALIAS
-        if not isinstance(opinfo2, info.ArrayPtrInfo):
-            return UNKNOWN_ALIAS
-        if opinfo1.getlenbound(None).known_ne(opinfo2.getlenbound(None)):
-            return CANNOT_ALIAS
-        else:
-            return UNKNOWN_ALIAS
-
-    def _cannot_alias_via_content(self, optheap, opinfo1, opinfo2):
-        if not isinstance(opinfo1, info.ArrayPtrInfo):
-            return UNKNOWN_ALIAS
-        if not isinstance(opinfo2, info.ArrayPtrInfo):
-            return UNKNOWN_ALIAS
-        content1 = opinfo1.all_items()
-        if content1 is None:
-            return UNKNOWN_ALIAS
-        content2 = opinfo2.all_items()
-        if content2 is None:
-            return UNKNOWN_ALIAS
-        for index in range(min(len(content1), len(content2))):
-            value1 = get_box_replacement(content1[index])
-            value2 = get_box_replacement(content2[index])
-            if value1 is None or value2 is None:
-                continue
-            if not value1.is_constant() or not value2.is_constant():
-                continue
-            if not value1.same_constant(value2):
-                return CANNOT_ALIAS
-        return UNKNOWN_ALIAS
 
 class ArrayCacheSubMap(object):
     def __init__(self):
@@ -890,6 +827,26 @@ class OptHeap(Optimization):
             cf = self.arrayitem_cache(descr, index)
             arrayinfo.setitem(descr, index, box1, box2, optheap=self, cf=cf)
 
+    def _check_aliasing_two_infos_by_content(self, info0, info1):
+        if isinstance(info0, info.AbstractStructPtrInfo) and isinstance(info1, info.AbstractStructPtrInfo):
+            list0 = info0.all_items()
+            list1 = info1.all_items()
+        elif isinstance(info0, info.ArrayPtrInfo) and isinstance(info1, info.ArrayPtrInfo):
+            list0 = info0.all_items()
+            list1 = info1.all_items()
+        else:
+            return UNKNOWN_ALIAS
+        if list0 is not None and list1 is not None:
+            for index in range(min(len(list0), len(list1))):
+                value0 = get_box_replacement(list0[index])
+                value1 = get_box_replacement(list1[index])
+                if value0 is None or value1 is None:
+                    continue
+                if not value0.is_constant() or not value1.is_constant():
+                    continue
+                if not value0.same_constant(value1):
+                    return CANNOT_ALIAS
+        return UNKNOWN_ALIAS
 
 dispatch_opt = make_dispatcher_method(OptHeap, 'optimize_',
                                       default=OptHeap.emit)
