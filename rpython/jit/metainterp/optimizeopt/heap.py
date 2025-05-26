@@ -845,6 +845,13 @@ class OptHeap(Optimization):
                 if value0.type == value1.type == INT:
                     if self.optimizer.getintbound(value0).known_ne(self.optimizer.getintbound(value1)):
                         return CANNOT_ALIAS
+                if value0.type == value1.type == REF:
+                    import pdb; pdb.set_trace()
+                    # TODO: Getting the info just for instance is ugly
+                    value0_info, value1_info = info.getptrinfo(value0), info.getptrinfo(value1)
+                    instance = isinstance(value0_info, info.InstancePtrInfo) and isinstance(value1_info, info.InstancePtrInfo)
+                    # TODO: Limit recursion depth
+                    return self.optimizer.check_aliasing(value0, value1, instance=instance)
                 if not value0.is_constant() or not value1.is_constant():
                     continue
                 if not value0.same_constant(value1):
