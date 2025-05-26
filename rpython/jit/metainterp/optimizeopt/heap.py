@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 from rpython.jit.codewriter.effectinfo import EffectInfo
 from rpython.jit.metainterp.optimizeopt.util import args_dict
-from rpython.jit.metainterp.history import new_ref_dict
+from rpython.jit.metainterp.history import new_ref_dict, INT, REF
 from rpython.jit.metainterp.optimizeopt.optimizer import Optimization, REMOVED, \
     CANNOT_ALIAS, MUST_ALIAS, UNKNOWN_ALIAS
 from rpython.jit.metainterp.optimizeopt.util import (
@@ -842,6 +842,9 @@ class OptHeap(Optimization):
                 value1 = get_box_replacement(list1[index])
                 if value0 is None or value1 is None:
                     continue
+                if value0.type == value1.type == INT:
+                    if self.optimizer.getintbound(value0).known_ne(self.optimizer.getintbound(value1)):
+                        return CANNOT_ALIAS
                 if not value0.is_constant() or not value1.is_constant():
                     continue
                 if not value0.same_constant(value1):

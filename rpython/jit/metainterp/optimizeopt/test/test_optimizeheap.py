@@ -748,7 +748,6 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
-    #@pytest.mark.xfail()
     def test_ptr_eq_aliasing_by_field_content(self):
         ops = """
         [p1, p2, p3, p4]
@@ -794,7 +793,7 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
-    @pytest.mark.xfail
+    #@pytest.mark.xfail
     def test_setfield_aliasing_by_field_content_intbounds(self):
         ops = """
         [p1, p2, p3, p4]
@@ -813,10 +812,10 @@ class TestOptimizeHeap(BaseTestBasic):
         [p1, p2, p3, p4]
         i1 = getfield_gc_i(p1, descr=valuedescr)
         i3 = int_and(i1, 1)
-        guard_value(i3, 0) []
+        guard_false(i3) []
         i2 = getfield_gc_i(p2, descr=valuedescr)
         i4 = int_and(i2, 1)
-        guard_value(i4, 1) []
+        guard_true(i4) []
         setfield_gc(p1, p3, descr=nextdescr)
         setfield_gc(p2, p4, descr=nextdescr)
         jump(p1, p2, p3)
