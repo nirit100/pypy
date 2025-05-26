@@ -701,7 +701,7 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
-    @pytest.mark.xfail
+    @pytest.mark.xfail()
     def test_forced_virtuals_aliasing(self):
         ops = """
         [i0, i1]
@@ -769,6 +769,52 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
+    @pytest.mark.xfail()
+    def test_ptr_eq_aliasing_by_field_content_recursive(self):
+        ops = """
+        [p1, p2]
+        p3 = getfield_gc_r(p1, descr=nextdescr)
+        i1 = getfield_gc_i(p3, descr=valuedescr)
+        guard_value(i1, 1) []
+        p4 = getfield_gc_r(p2, descr=nextdescr)
+        i2 = getfield_gc_i(p4, descr=valuedescr)
+        guard_value(i2, 2) []
+        i3 = instance_ptr_eq(p1, p2)
+        guard_false(i3) []
+        jump(p1, p2)
+        """
+        expected = """
+        [p1, p2]
+        i1 = getfield_gc_i(p1, descr=valuedescr)
+        guard_value(i1, 1) []
+        i2 = getfield_gc_i(p2, descr=valuedescr)
+        guard_value(i2, 2) []
+        jump(p1, p2)
+        """
+        self.optimize_loop(ops, expected)
+
+    @pytest.mark.xfail()
+    def test_ptr_eq_aliasing_by_field_content_ptr_ne(self):
+        ops = """
+        [p1, p2]
+        p3 = getfield_gc_r(p1, descr=nextdescr)
+        p4 = getfield_gc_r(p2, descr=nextdescr)
+        i1 = instance_ptr_ne(p3, p4)
+        guard_true(i1) []
+        i3 = instance_ptr_eq(p1, p2)
+        guard_false(i3) []
+        jump(p1, p2)
+        """
+        expected = """
+        [p1, p2]
+        i1 = getfield_gc_i(p1, descr=valuedescr)
+        guard_value(i1, 1) []
+        i2 = getfield_gc_i(p2, descr=valuedescr)
+        guard_value(i2, 2) []
+        jump(p1, p2)
+        """
+        self.optimize_loop(ops, expected)
+
     def test_setfield_aliasing_by_field_content(self):
         ops = """
         [p1, p2, p3, p4]
@@ -793,7 +839,6 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
-    #@pytest.mark.xfail
     def test_setfield_aliasing_by_field_content_intbounds(self):
         ops = """
         [p1, p2, p3, p4]
