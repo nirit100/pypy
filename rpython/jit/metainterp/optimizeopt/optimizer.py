@@ -19,7 +19,9 @@ from rpython.rtyper.lltypesystem import llmemory
 from rpython.jit.metainterp.optimize import SpeculativeError
 
 
-
+MUST_ALIAS = 'm'
+CANNOT_ALIAS = 'c'
+UNKNOWN_ALIAS = '?'
 
 CONST_0      = ConstInt(0)
 CONST_1      = ConstInt(1)
@@ -857,6 +859,52 @@ class Optimizer(Optimization):
     def is_virtual(self, op):
         opinfo = getptrinfo(op)
         return opinfo is not None and opinfo.is_virtual()
+
+    def check_aliasing(self, arg0, arg1, instance=False):
+        def nullness_to_aliasing(nullness):
+            if nullness == info.INFO_NULL:
+                return MUST_ALIAS
+            elif nullness == info.INFO_NONNULL:
+                return CANNOT_ALIAS
+            return UNKNOWN_ALIAS
+        info0 = getptrinfo(arg0)
+        info1 = getptrinfo(arg1)
+        if arg0 is arg1:
+            return MUST_ALIAS
+        elif info0 and info0.is_virtual():
+            if info1 and info1.is_virtual():
+                if info0 is info1:
+                    return MUST_ALIAS
+                return CANNOT_ALIAS
+            else:
+                return CANNOT_ALIAS
+        elif info1 and info1.is_virtual():
+            return CANNOT_ALIAS
+        elif info1 and info1.is_null():
+            nullness = self.getnullness(arg0)
+            return nullness_to_aliasing(nullness)
+        elif info0 and info0.is_null():
+            nullness = self.getnullness(arg1)
+            return nullness_to_aliasing(nullness)
+        else:
+            if instance:
+                if info0 is None:
+                    cls0 = None
+                else:
+                    cls0 = info0.get_known_class(self.cpu)
+                if cls0 is not None:
+                    if info1 is None:
+                        cls1 = None
+                    else:
+                        cls1 = info1.get_known_class(self.cpu)
+                    if cls1 is not None and not cls0.same_constant(cls1):
+                        # cannot be the same object, as we know that their
+                        # class is different
+                        return CANNOT_ALIAS
+            elif isinstance(info0, info.ArrayPtrInfo) and isinstance(info1, info.ArrayPtrInfo):
+                if info0.getlenbound(None).known_ne(info1.getlenbound(None)):
+                    return CANNOT_ALIAS
+            return UNKNOWN_ALIAS
 
     # These are typically removed already by OptRewrite, but it can be
     # dissabled and unrolling emits some SAME_AS ops to setup the

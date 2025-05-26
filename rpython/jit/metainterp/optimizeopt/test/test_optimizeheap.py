@@ -748,6 +748,27 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
+    def test_ptr_eq_aliasing_by_field_content(self):
+        ops = """
+        [p1, p2, p3, p4]
+        i1 = getfield_gc_i(p1, descr=valuedescr)
+        guard_value(i1, 1) []
+        i2 = getfield_gc_i(p2, descr=valuedescr)
+        guard_value(i2, 2) []
+        i3 = ptr_eq(p1, p2)
+        guard_false(i3) []
+        jump(p1, p2)
+        """
+        expected = """
+        [p1, p2, p3, p4]
+        i1 = getfield_gc_i(p1, descr=valuedescr)
+        guard_value(i1, 1) []
+        i2 = getfield_gc_i(p2, descr=valuedescr)
+        guard_value(i2, 2) []
+        jump(p1, p2)
+        """
+        self.optimize_loop(ops, expected)
+
     def test_setfield_aliasing_by_field_content(self):
         ops = """
         [p1, p2, p3, p4]

@@ -6,7 +6,7 @@ from rpython.jit.metainterp.history import (
     DONT_CHANGE)
 from rpython.jit.metainterp.optimize import InvalidLoop
 from rpython.jit.metainterp.optimizeopt.optimizer import (
-    Optimization, OptimizationResult, REMOVED, CONST_0, CONST_1)
+    CANNOT_ALIAS, UNKNOWN_ALIAS, MUST_ALIAS, Optimization, OptimizationResult, REMOVED, CONST_0, CONST_1)
 from rpython.jit.metainterp.optimizeopt.info import (
     INFO_NONNULL, INFO_NULL, getptrinfo, ArrayPtrInfo)
 from rpython.jit.metainterp.optimizeopt.util import (
@@ -513,8 +513,14 @@ class OptRewrite(Optimization):
         return self._optimize_nullness(op, op.getarg(0), False)
 
     def _optimize_oois_ooisnot(self, op, expect_isnot, instance):
+        #import pdb; pdb.set_trace()
         arg0 = get_box_replacement(op.getarg(0))
         arg1 = get_box_replacement(op.getarg(1))
+        alias = self.optimizer.check_aliasing(arg0, arg1, instance)
+        if alias == UNKNOWN_ALIAS:
+            return self.emit(op)
+        res = (alias != CANNOT_ALIAS) ^ expect_isnot
+        return self.make_constant_int(op, res)
         info0 = getptrinfo(arg0)
         info1 = getptrinfo(arg1)
         if info0 and info0.is_virtual():

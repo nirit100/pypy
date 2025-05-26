@@ -3,7 +3,8 @@ from collections import OrderedDict
 from rpython.jit.codewriter.effectinfo import EffectInfo
 from rpython.jit.metainterp.optimizeopt.util import args_dict
 from rpython.jit.metainterp.history import new_ref_dict
-from rpython.jit.metainterp.optimizeopt.optimizer import Optimization, REMOVED
+from rpython.jit.metainterp.optimizeopt.optimizer import Optimization, REMOVED, \
+    CANNOT_ALIAS, MUST_ALIAS, UNKNOWN_ALIAS
 from rpython.jit.metainterp.optimizeopt.util import (
     make_dispatcher_method, have_dispatcher_method, get_box_replacement)
 from rpython.jit.metainterp.optimizeopt.intutils import IntBound
@@ -12,10 +13,6 @@ from rpython.jit.metainterp.optimize import InvalidLoop
 from rpython.jit.metainterp.resoperation import rop
 from rpython.rlib.objectmodel import we_are_translated
 from rpython.jit.metainterp.optimizeopt import info
-
-MUST_ALIAS = 'm'
-CANNOT_ALIAS = 'c'
-UNKNOWN_ALIAS = '?'
 
 class AbstractCachedEntry(object):
     """ abstract base class abstracting over the difference between caching
