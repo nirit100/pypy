@@ -785,9 +785,11 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         expected = """
         [p1, p2]
-        i1 = getfield_gc_i(p1, descr=valuedescr)
+        p3 = getfield_gc_r(p1, descr=nextdescr)
+        i1 = getfield_gc_i(p3, descr=valuedescr)
         guard_value(i1, 1) []
-        i2 = getfield_gc_i(p2, descr=valuedescr)
+        p4 = getfield_gc_r(p2, descr=nextdescr)
+        i2 = getfield_gc_i(p4, descr=valuedescr)
         guard_value(i2, 2) []
         jump(p1, p2)
         """
@@ -807,10 +809,10 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         expected = """
         [p1, p2]
-        i1 = getfield_gc_i(p1, descr=valuedescr)
-        guard_value(i1, 1) []
-        i2 = getfield_gc_i(p2, descr=valuedescr)
-        guard_value(i2, 2) []
+        p3 = getfield_gc_r(p1, descr=nextdescr)
+        p4 = getfield_gc_r(p2, descr=nextdescr)
+        i1 = instance_ptr_ne(p3, p4)
+        guard_true(i1) []
         jump(p1, p2)
         """
         self.optimize_loop(ops, expected)
@@ -1219,6 +1221,7 @@ class TestOptimizeHeap(BaseTestBasic):
         jump(i3, i4)
         """
         self.optimize_loop(ops, expected)
+
 
     @pytest.mark.xfail()
     def test_duplicate_getarrayitem_after_setarrayitem_varindex_two_arrays_aliasing_via_length(self):
