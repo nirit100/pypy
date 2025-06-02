@@ -794,6 +794,27 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
+    def test_instance_ptr_eq_boolinverse_boolreflex(self):
+        ops = """
+        [p0, p1]
+        i0 = instance_ptr_eq(p0, p1)
+        guard_false(i0) []
+        i1 = instance_ptr_eq(p1, p0)
+        guard_false(i1) []
+        i2 = instance_ptr_ne(p1, p0)
+        guard_true(i2) []
+        i3 = instance_ptr_ne(p0, p1)
+        guard_true(i3) []
+        jump(p0, p1)
+        """
+        expected = """
+        [p0, p1]
+        i0 = instance_ptr_eq(p0, p1)
+        guard_false(i0) []
+        jump(p0, p1)
+        """
+        self.optimize_loop(ops, expected)
+
     @pytest.mark.xfail()
     def test_ptr_eq_aliasing_by_field_content_ptr_ne(self):
         ops = """
