@@ -204,6 +204,11 @@ class Optimization(object):
             return self.optimizer.optpure.get_pure_result(key)
         return None
 
+    def get_pure_result_two_args(self, opnum, arg0, arg1, descr=None, commutative=False):
+        if self.optimizer.optpure:
+            return self.optimizer.optpure.get_pure_result_two_args(opnum, arg0, arg1, descr, commutative=commutative)
+        return None
+
     def setup(self):
         pass
 
@@ -890,12 +895,10 @@ class Optimizer(Optimization):
         else:
             eqop = rop.PTR_EQ
             neop = rop.PTR_NE
-        op = ResOperation(neop, [arg0, arg1])
-        oldop = self.get_pure_result(op)
+        oldop = self.get_pure_result_two_args(neop, arg0, arg1, commutative=True)
         if oldop and self.getintbound(oldop).known_eq_const(1):
             return CANNOT_ALIAS
-        op = ResOperation(eqop, [arg0, arg1])
-        oldop = self.get_pure_result(op)
+        oldop = self.get_pure_result_two_args(eqop, arg0, arg1, commutative=True)
         if oldop and self.getintbound(oldop).known_eq_const(0):
             return CANNOT_ALIAS
         return self.check_aliasing_two_infos(info0, info1, instance, _max_depth)

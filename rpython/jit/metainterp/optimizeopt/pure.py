@@ -313,6 +313,12 @@ class OptPure(Optimization):
             return None
         return get_box_replacement(recentops.lookup(self.optimizer, op))
 
+    def get_pure_result_two_args(self, opnum, arg0, arg1, descr, commutative=False):
+        recentops = self.getrecentops(opnum, create=False)
+        if not recentops:
+            return None
+        return get_box_replacement(recentops.lookup2(self.optimizer, arg0, arg1, descr, commutative))
+
     def produce_potential_short_preamble_ops(self, sb):
         ops = self.optimizer._newoperations
         for i, op in enumerate(ops):

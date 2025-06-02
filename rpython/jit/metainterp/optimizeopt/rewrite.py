@@ -53,8 +53,8 @@ class OptRewrite(Optimization):
 
         return dispatch_opt(self, op)
 
-    def try_boolinvers(self, op, targs):
-        oldop = self.get_pure_result(targs)
+    def try_boolinvers(self, op, otheropnum, arg0, arg1, commutative):
+        oldop = self.get_pure_result_two_args(otheropnum, arg0, arg1, commutative=commutative)
         if oldop is not None:
             b = self.getintbound(oldop)
             if b.known_eq_const(1):
@@ -66,30 +66,27 @@ class OptRewrite(Optimization):
         return False
 
     def find_rewritable_bool(self, op):
-        oldopnum = op.boolinverse
+        opnum_negation = op.boolinverse
+        opnum_argument_swapped = op.boolreflex
+        commutative = opnum_argument_swapped == op.opnum
         arg0 = op.getarg(0)
         arg1 = op.getarg(1)
-        if oldopnum != -1:
-            top = ResOperation(oldopnum, [arg0, arg1])
-            if self.try_boolinvers(op, top):
+        if opnum_negation != -1:
+            if self.try_boolinvers(op, opnum_negation, arg0, arg1, commutative):
                 return True
 
-        oldopnum = op.boolreflex  # FIXME: add INT_ADD, INT_MUL
-        if oldopnum != -1:
-            top = ResOperation(oldopnum, [arg1, arg0])
-            oldop = self.get_pure_result(top)
+        if opnum_argument_swapped != -1:
+            oldop = self.get_pure_result_two_args(opnum_argument_swapped, arg1, arg0)
             if oldop is not None:
                 self.optimizer.make_equal_to(op, oldop)
                 return True
 
-        if op.boolreflex == -1:
+        if op.boolreflex == -1 or commutative:
             return False
-        oldopnum = opclasses[op.boolreflex].boolinverse
-        if oldopnum != -1:
-            top = ResOperation(oldopnum, [arg1, arg0])
-            if self.try_boolinvers(op, top):
+        opnum_argument_swapped = opclasses[op.boolreflex].boolinverse
+        if opnum_argument_swapped != -1:
+            if self.try_boolinvers(op, opnum_argument_swapped, arg1, arg0, commutative):
                 return True
-
         return False
 
     def _optimize_CALL_INT_UDIV(self, op):
