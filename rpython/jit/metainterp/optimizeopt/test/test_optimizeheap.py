@@ -769,7 +769,6 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
-    @pytest.mark.xfail()
     def test_ptr_eq_aliasing_by_field_content_recursive(self):
         ops = """
         [p1, p2]
@@ -816,6 +815,26 @@ class TestOptimizeHeap(BaseTestBasic):
         jump(p1, p2)
         """
         self.optimize_loop(ops, expected)
+
+    def test_aliasing_by_content_max_depth(self):
+        ops = ["[p1, p2]"]
+        varindex = 3
+        for i in range(50):
+            ops.append("p%s = getfield_gc_r(p%s, descr=nextdescr)" % (varindex, varindex - 2))
+            varindex += 1
+            ops.append("p%s = getfield_gc_r(p%s, descr=nextdescr)" % (varindex, varindex - 2))
+            varindex += 1
+        ops.append("i0 = getfield_gc_r(p%s, descr=valuedescr)" % (varindex - 2))
+        ops.append("guard_value(i0, 1) []")
+        ops.append("i1 = getfield_gc_r(p%s, descr=valuedescr)" % (varindex - 1))
+        ops.append("guard_value(i1, 2) []")
+        ops.append("i2 = instance_ptr_eq(p1, p2)")
+        ops.append("guard_false(i2) []")
+        ops.append("jump(p1, p2)")
+        ops = "\n".join(ops)
+        # we don't want this to be optimized because it involves too much
+        # work to follow the chain of getfields in the optimizer
+        self.optimize_loop(ops, ops)
 
     def test_setfield_aliasing_by_field_content(self):
         ops = """

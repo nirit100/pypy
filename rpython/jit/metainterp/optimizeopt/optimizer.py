@@ -860,7 +860,7 @@ class Optimizer(Optimization):
         opinfo = getptrinfo(op)
         return opinfo is not None and opinfo.is_virtual()
 
-    def check_aliasing(self, arg0, arg1, instance=False):
+    def check_aliasing(self, arg0, arg1, instance=False, _max_depth=16):
         """ check aliasing possibilities of arg0 and arg1. returns:
         MUST_ALIAS if the pointers arg0 and arg1 must be the same
         CANNOT_ALIAS if the pointers arg0 and arg1 must be different
@@ -884,10 +884,12 @@ class Optimizer(Optimization):
         elif info0 and info0.is_null():
             nullness = self.getnullness(arg1)
             return nullness_to_aliasing(nullness)
-        return self.check_aliasing_two_infos(info0, info1, instance)
+        return self.check_aliasing_two_infos(info0, info1, instance, _max_depth)
 
-    def check_aliasing_two_infos(self, info0, info1, instance=False):
+    def check_aliasing_two_infos(self, info0, info1, instance=False, _max_depth=16):
         """check if two pointer infos can alias or not. return values are the same as check_aliasing"""
+        if _max_depth < 0:
+            return UNKNOWN_ALIAS
         # TODO: do we want to check for info0 is info1 here?
         if info0 and info0.is_virtual():
             if info1 and info1.is_virtual():
@@ -916,12 +918,12 @@ class Optimizer(Optimization):
                     # class is different
                     return CANNOT_ALIAS
             if self.optheap is not None and isinstance(info0, info.AbstractStructPtrInfo) and isinstance(info1, info.AbstractStructPtrInfo):
-                return self.optheap._check_aliasing_two_infos_by_content(info0, info1)
+                return self.optheap._check_aliasing_two_infos_by_content(info0, info1, _max_depth - 1)
         elif isinstance(info0, info.ArrayPtrInfo) and isinstance(info1, info.ArrayPtrInfo):
             # if length of two arrays is different they cannot be the same array
             if info0.getlenbound(None).known_ne(info1.getlenbound(None)):
                 return CANNOT_ALIAS
-            return self.optheap._check_aliasing_two_infos_by_content(info0, info1)
+            return self.optheap._check_aliasing_two_infos_by_content(info0, info1, _max_depth - 1)
         return UNKNOWN_ALIAS
 
     # These are typically removed already by OptRewrite, but it can be

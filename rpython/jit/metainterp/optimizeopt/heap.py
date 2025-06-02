@@ -827,7 +827,8 @@ class OptHeap(Optimization):
             cf = self.arrayitem_cache(descr, index)
             arrayinfo.setitem(descr, index, box1, box2, optheap=self, cf=cf)
 
-    def _check_aliasing_two_infos_by_content(self, info0, info1):
+    def _check_aliasing_two_infos_by_content(self, info0, info1, _max_depth):
+        # only called by Optimizer.check_aliasing_two_infos
         if isinstance(info0, info.AbstractStructPtrInfo) and isinstance(info1, info.AbstractStructPtrInfo):
             list0 = info0.all_items()
             list1 = info1.all_items()
@@ -846,12 +847,11 @@ class OptHeap(Optimization):
                     if self.optimizer.getintbound(value0).known_ne(self.optimizer.getintbound(value1)):
                         return CANNOT_ALIAS
                 if value0.type == value1.type == REF:
-                    import pdb; pdb.set_trace()
-                    # TODO: Getting the info just for instance is ugly
+                    #import pdb; pdb.set_trace()
                     value0_info, value1_info = info.getptrinfo(value0), info.getptrinfo(value1)
                     instance = isinstance(value0_info, info.InstancePtrInfo) and isinstance(value1_info, info.InstancePtrInfo)
                     # TODO: Limit recursion depth
-                    return self.optimizer.check_aliasing(value0, value1, instance=instance)
+                    return self.optimizer.check_aliasing(value0, value1, instance=instance, _max_depth=_max_depth)
                 if not value0.is_constant() or not value1.is_constant():
                     continue
                 if not value0.same_constant(value1):
