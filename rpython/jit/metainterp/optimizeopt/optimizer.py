@@ -8,7 +8,7 @@ from rpython.jit.metainterp.optimizeopt.util import (
 from rpython.jit.metainterp.optimizeopt.bridgeopt import (
     deserialize_optimizer_knowledge)
 from rpython.jit.metainterp.resoperation import (
-    rop, AbstractResOp, GuardResOp, OpHelpers)
+    rop, AbstractResOp, GuardResOp, OpHelpers, ResOperation)
 from .info import getrawptrinfo, getptrinfo
 from rpython.jit.metainterp.optimizeopt import info
 from rpython.jit.metainterp.optimize import InvalidLoop
@@ -884,6 +884,20 @@ class Optimizer(Optimization):
         elif info0 and info0.is_null():
             nullness = self.getnullness(arg1)
             return nullness_to_aliasing(nullness)
+        if instance:
+            eqop = rop.INSTANCE_PTR_EQ
+            neop = rop.INSTANCE_PTR_NE
+        else:
+            eqop = rop.PTR_EQ
+            neop = rop.PTR_NE
+        op = ResOperation(neop, [arg0, arg1])
+        oldop = self.get_pure_result(op)
+        if oldop and self.getintbound(oldop).known_eq_const(1):
+            return CANNOT_ALIAS
+        op = ResOperation(eqop, [arg0, arg1])
+        oldop = self.get_pure_result(op)
+        if oldop and self.getintbound(oldop).known_eq_const(0):
+            return CANNOT_ALIAS
         return self.check_aliasing_two_infos(info0, info1, instance, _max_depth)
 
     def check_aliasing_two_infos(self, info0, info1, instance=False, _max_depth=16):
