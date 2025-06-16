@@ -1279,7 +1279,6 @@ class TestOptimizeHeap(BaseTestBasic):
         self.optimize_loop(ops, expected)
 
 
-    @pytest.mark.xfail()
     def test_duplicate_getarrayitem_after_setarrayitem_varindex_two_arrays_aliasing_via_length(self):
         ops = """
         [p1, p2, p3, p4, i1]

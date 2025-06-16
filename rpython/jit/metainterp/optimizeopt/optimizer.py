@@ -905,6 +905,7 @@ class Optimizer(Optimization):
 
     def check_aliasing_two_infos(self, info0, info1, instance=False, _max_depth=16):
         """check if two pointer infos can alias or not. return values are the same as check_aliasing"""
+        # TODO make maxdepth configurable? maybe simply reuse pureop_historylength
         if _max_depth < 0:
             return UNKNOWN_ALIAS
         # TODO: do we want to check for info0 is info1 here?

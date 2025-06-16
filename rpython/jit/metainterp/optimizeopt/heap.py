@@ -4,7 +4,7 @@ from rpython.jit.codewriter.effectinfo import EffectInfo
 from rpython.jit.metainterp.optimizeopt.util import args_dict
 from rpython.jit.metainterp.history import new_ref_dict, INT, REF
 from rpython.jit.metainterp.optimizeopt.optimizer import Optimization, REMOVED, \
-    CANNOT_ALIAS, MUST_ALIAS, UNKNOWN_ALIAS
+    CANNOT_ALIAS, MUST_ALIAS, UNKNOWN_ALIAS, Optimizer
 from rpython.jit.metainterp.optimizeopt.util import (
     make_dispatcher_method, have_dispatcher_method, get_box_replacement)
 from rpython.jit.metainterp.optimizeopt.intutils import IntBound
@@ -232,7 +232,9 @@ class ArrayCachedItem(AbstractCachedEntry):
         self.parent.clear_varindex()
 
 class ArrayCacheSubMap(object):
-    def __init__(self):
+    def __init__(self, optimizer):
+        # type (Optimizer) -> None
+        self.optimizer = optimizer
         self.const_indexes = {} # int -> ArrayCachedItem
         self.clear_varindex()
 
@@ -240,7 +242,7 @@ class ArrayCacheSubMap(object):
         self.cached_varindex_triples = None
 
     def cache_varindex_read(self, arrayinfo, indexbox, resbox):
-        # TODO: impose some kind of variable length for self.cached_varindex_triples
+        # TODO: impose some kind of maximum length for self.cached_varindex_triples
         entry = (arrayinfo, indexbox, resbox)
         if self.cached_varindex_triples is None:
             self.cached_varindex_triples = [entry]
@@ -248,7 +250,20 @@ class ArrayCacheSubMap(object):
         self.cached_varindex_triples.append(entry)
 
     def cache_varindex_write(self, arrayinfo, indexbox, resbox):
-        self.cached_varindex_triples = [(arrayinfo, indexbox, resbox)]
+        old = self.cached_varindex_triples
+        new = []
+        if old is not None:
+            for triple in old:
+                if self.optimizer.check_aliasing_two_infos(arrayinfo, triple[0]) == CANNOT_ALIAS:
+                    if len(new) > self.optimizer.jitdriver_sd.warmstate.pureop_historylength:
+                        # this is really unlikely to be ever executed. but we want to limit
+                        # the cache to a maximum size, otherwise this method is quadratic if
+                        # you optimize just the wrong trace
+                        new.pop(0)
+                    new.append(triple)
+        new.append((arrayinfo, indexbox, resbox))
+
+        self.cached_varindex_triples = new
 
     def lookup_cached(self, arrayinfo, indexbox):
         if self.cached_varindex_triples is not None:
@@ -335,7 +350,7 @@ class OptHeap(Optimization):
             return self.cached_arrayitems[descr]
         except KeyError:
             if create_if_nonexistant:
-                submap = self.cached_arrayitems[descr] = ArrayCacheSubMap()
+                submap = self.cached_arrayitems[descr] = ArrayCacheSubMap(self.optimizer)
             else:
                 submap = None
             return submap
