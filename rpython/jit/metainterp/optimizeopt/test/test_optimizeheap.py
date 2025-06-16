@@ -1136,6 +1136,19 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
+    def test_duplicate_getarrayitem_varindex_max_cache_size(self):
+        ops = []
+        N = 20
+        ops.append("[i1, " + ", ".join(["p%i" % i for i in range(N)]) + "]")
+        free_varname = N
+        for _ in range(2):
+            for i in range(N):
+                ops.append("p%s = getarrayitem_gc_r(p%s, i1, descr=arraydescr2)" % (free_varname, i))
+                free_varname += 1
+        ops.append("jump(i1, p%s)" % (free_varname - 1))
+        ops = "\n".join(ops)
+        self.optimize_loop(ops, ops)
+
     def test_duplicate_getarrayitem_varindex_two_arrays(self):
         ops = """
         [p1, p2, i1]

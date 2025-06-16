@@ -241,12 +241,21 @@ class ArrayCacheSubMap(object):
     def clear_varindex(self):
         self.cached_varindex_triples = None
 
+    def _limit_size(self, lst=None):
+        if lst is None:
+            lst = self.cached_varindex_triples
+        if len(lst) > self.optimizer.jitdriver_sd.warmstate.pureop_historylength:
+            # this is really unlikely to be ever executed. but we want to limit
+            # the cache to a maximum size, otherwise cache_varindex_read/write are
+            # quadratic if you optimize just the wrong trace
+            lst.pop(0)
+
     def cache_varindex_read(self, arrayinfo, indexbox, resbox):
-        # TODO: impose some kind of maximum length for self.cached_varindex_triples
         entry = (arrayinfo, indexbox, resbox)
         if self.cached_varindex_triples is None:
             self.cached_varindex_triples = [entry]
             return
+        self._limit_size()
         self.cached_varindex_triples.append(entry)
 
     def cache_varindex_write(self, arrayinfo, indexbox, resbox):
@@ -257,11 +266,7 @@ class ArrayCacheSubMap(object):
             for triple in old:
                 if (bound.known_ne(self.optimizer.getintbound(triple[1])) or
                         self.optimizer.check_aliasing_two_infos(arrayinfo, triple[0]) == CANNOT_ALIAS):
-                    if len(new) > self.optimizer.jitdriver_sd.warmstate.pureop_historylength:
-                        # this is really unlikely to be ever executed. but we want to limit
-                        # the cache to a maximum size, otherwise this method is quadratic if
-                        # you optimize just the wrong trace
-                        new.pop(0)
+                    self._limit_size(new)
                     new.append(triple)
         new.append((arrayinfo, indexbox, resbox))
         self.cached_varindex_triples = new
