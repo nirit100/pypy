@@ -252,9 +252,11 @@ class ArrayCacheSubMap(object):
     def cache_varindex_write(self, arrayinfo, indexbox, resbox):
         old = self.cached_varindex_triples
         new = []
+        bound = self.optimizer.getintbound(indexbox)
         if old is not None:
             for triple in old:
-                if self.optimizer.check_aliasing_two_infos(arrayinfo, triple[0]) == CANNOT_ALIAS:
+                if (bound.known_ne(self.optimizer.getintbound(triple[1])) or
+                        self.optimizer.check_aliasing_two_infos(arrayinfo, triple[0]) == CANNOT_ALIAS):
                     if len(new) > self.optimizer.jitdriver_sd.warmstate.pureop_historylength:
                         # this is really unlikely to be ever executed. but we want to limit
                         # the cache to a maximum size, otherwise this method is quadratic if
@@ -262,7 +264,6 @@ class ArrayCacheSubMap(object):
                         new.pop(0)
                     new.append(triple)
         new.append((arrayinfo, indexbox, resbox))
-
         self.cached_varindex_triples = new
 
     def lookup_cached(self, arrayinfo, indexbox):

@@ -1304,6 +1304,31 @@ class TestOptimizeHeap(BaseTestBasic):
         """
         self.optimize_loop(ops, expected)
 
+    def test_duplicate_getarrayitem_after_setarrayitem_varindex_one_array_different_indexes_via_knownbits(self):
+        ops = """
+        [p1, p3, p4, i1, i2]
+        i3 = int_and(i1, 1)
+        guard_value(i3, 1) []
+        i4 = int_and(i2, 1)
+        guard_value(i4, 0) []
+        setarrayitem_gc(p1, i1, p3, descr=arraydescr2)
+        setarrayitem_gc(p1, i2, p4, descr=arraydescr2)
+        p5 = getarrayitem_gc_r(p1, i1, descr=arraydescr2)
+        p6 = getarrayitem_gc_r(p1, i2, descr=arraydescr2)
+        jump(p3, p4, p5, p6)
+        """
+        expected = """
+        [p1, p3, p4, i1, i2]
+        i3 = int_and(i1, 1)
+        guard_true(i3) []
+        i4 = int_and(i2, 1)
+        guard_false(i4) []
+        setarrayitem_gc(p1, i1, p3, descr=arraydescr2)
+        setarrayitem_gc(p1, i2, p4, descr=arraydescr2)
+        jump(p3, p4, p3, p4)
+        """
+        self.optimize_loop(ops, expected)
+
     def test_ptr_eq_via_length(self):
         ops = """
         [p1, p2, p3, p4]
