@@ -704,24 +704,37 @@ class TestOptimizeHeap(BaseTestBasic):
     @pytest.mark.xfail()
     def test_forced_virtuals_aliasing(self):
         ops = """
-        [i0, i1]
+        [i0, i1, p3, p4]
         p0 = new(descr=ssize)
         p1 = new(descr=ssize)
-        escape_n(p0)
-        escape_n(p1)
+        # escape p0
+        setfield_gc(p3, p0, descr=nextdescr)
+        p5 = getfield_gc_r(p4, descr=nextdescr)
+        # escape p1
+        setfield_gc(p4, p1, descr=nextdescr)
+        p6 = getfield_gc_r(p3, descr=nextdescr)
+        # write to p0
         setfield_gc(p0, i0, descr=adescr)
+        # p1 cannot alias
         setfield_gc(p1, i1, descr=adescr)
         i2 = getfield_gc_i(p0, descr=adescr)
         jump(i2, i2)
         """
         expected = """
-        [i0, i1]
+        [i0, i1, p3, p4]
         p0 = new(descr=ssize)
-        escape_n(p0)
+        # escape p0
+        setfield_gc(p3, p0, descr=nextdescr)
+        p5 = getfield_gc_r(p4, descr=nextdescr)
+        # escape p1
         p1 = new(descr=ssize)
-        escape_n(p1)
+        setfield_gc(p4, p1, descr=nextdescr)
+        p6 = getfield_gc_r(p3, descr=nextdescr)
+        # write to p0
         setfield_gc(p0, i0, descr=adescr)
+        # p1 cannot alias
         setfield_gc(p1, i1, descr=adescr)
+        i2 = getfield_gc_i(p0, descr=adescr)
         jump(i0, i0)
         """
         # setfields on things that used to be virtual still can't alias each

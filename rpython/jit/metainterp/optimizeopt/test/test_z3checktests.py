@@ -381,6 +381,11 @@ class Checker(object):
                 vtable = descr.get_vtable().adr.ptr
                 self.solver_add(state.heaptypes[expr] == vtable.subclassrange_min)
                 self.solver_add(state.heap[expr] == z3.K(z3.BitVecSort(LONG_BIT), z3.BitVecVal(0, LONG_BIT)))
+            elif opname == "new":
+                expr = res
+                self.fresh_pointer(res)
+                z3typ = self._lltype_heaptypes_index(descr.S)
+                self.solver_add(state.heaptypes[res] == z3typ)
             elif opname == "getfield_gc_i" or opname == "getfield_gc_r":# int and reference
                 # we dont differentiate between struct and field in z3 heap structure
                 # so a field is an array at a specific index
